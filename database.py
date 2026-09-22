@@ -64,7 +64,7 @@ def save_snapshot(telegram_id: int, stats: Dict[str, Any]):
         conn.commit()
 
 def get_baseline_snapshot(telegram_id: int) -> Optional[Dict[str, Any]]:
-    """Retrieves the latest recorded baseline snapshot for a user."""
+    """Retrieves the initial (earliest) recorded snapshot when the user joined."""
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -72,7 +72,7 @@ def get_baseline_snapshot(telegram_id: int) -> Optional[Dict[str, Any]]:
             SELECT total_solved, easy_solved, medium_solved, hard_solved, contest_rating
             FROM snapshots
             WHERE telegram_id = ?
-            ORDER BY recorded_at DESC LIMIT 1;
+            ORDER BY recorded_at ASC LIMIT 1;
         """, (telegram_id,))
         row = cursor.fetchone()
         return dict(row) if row else None

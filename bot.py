@@ -14,7 +14,7 @@ from database import (
     add_member,
     save_snapshot,
     get_member,
-    get_daily_baseline_snapshot,
+    get_baseline_snapshot,
     get_all_members
 )
 from leetcode import fetch_leetcode_stats
@@ -107,7 +107,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Could not fetch stats from LeetCode. Please try again shortly.")
         return
 
-    baseline = get_daily_baseline_snapshot(user_id) or stats
+    baseline = get_baseline_snapshot(user_id) or stats
     delta_total = stats["total_solved"] - baseline["total_solved"]
     delta_easy = stats["easy_solved"] - baseline["easy_solved"]
     delta_med = stats["medium_solved"] - baseline["medium_solved"]
@@ -154,7 +154,7 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not live_stats:
             continue
         
-        baseline = get_daily_baseline_snapshot(tg_id) or live_stats
+        baseline = get_baseline_snapshot(tg_id) or live_stats
         delta_solved = live_stats["total_solved"] - baseline["total_solved"]
         
         board_data.append({
@@ -210,7 +210,7 @@ async def daily_leaderboard_job(context: ContextTypes.DEFAULT_TYPE):
         if not live_stats:
             continue
 
-        baseline = get_daily_baseline_snapshot(tg_id) or live_stats
+        baseline = get_baseline_snapshot(tg_id) or live_stats
         delta_solved = live_stats["total_solved"] - baseline["total_solved"]
         delta_rating = round(live_stats["contest_rating"] - baseline["contest_rating"], 1)
 
