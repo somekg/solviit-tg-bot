@@ -1,0 +1,12 @@
+services:
+  solviit-bot:
+    build: .
+    container_name: solviit_leetcode_bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # Mount SQLite DB directory to prevent data loss on container restarts
+      - ./data:/app/data
+    environment:
+      - TZ=Europe/Madrid

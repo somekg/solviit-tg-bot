@@ -1,7 +1,7 @@
 import sqlite3
 from typing import Optional, Dict, Any
 
-DB_PATH = "club.db"
+DB_PATH = "data/club.db"
 
 def init_db():
     """Initializes tables for members and weekly snapshot baselines."""
@@ -46,7 +46,7 @@ def add_member(telegram_id: int, tg_username: str, leetcode_username: str):
         conn.commit()
 
 def save_snapshot(telegram_id: int, stats: Dict[str, Any]):
-    """Records a fresh problem count and rating snapshot."""
+    """Records a fresh snapshot (used on registration and weekly reset)."""
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         cursor.execute("""
@@ -63,10 +63,10 @@ def save_snapshot(telegram_id: int, stats: Dict[str, Any]):
         ))
         conn.commit()
 
-def get_latest_snapshot(telegram_id: int) -> Optional[Dict[str, Any]]:
-    """Retrieves the most recent snapshot baseline for a user."""
+def get_baseline_snapshot(telegram_id: int) -> Optional[Dict[str, Any]]:
+    """Retrieves the latest recorded baseline snapshot for a user."""
     with sqlite3.connect(DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row  # Access columns by name
+        conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute("""
             SELECT total_solved, easy_solved, medium_solved, hard_solved, contest_rating
@@ -90,19 +90,5 @@ def get_member(telegram_id: int):
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute("SELECT telegram_id, telegram_username, leetcode_username FROM members WHERE telegram_id = ?;", (telegram_id,))
-        row = cursor.fetchone()
-        return dict(row) if row else None
-
-def get_baseline_snapshot(telegram_id: int):
-    """Retrieves the earliest recorded snapshot (baseline) for weekly deltas."""
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT total_solved, easy_solved, medium_solved, hard_solved, contest_rating
-            FROM snapshots
-            WHERE telegram_id = ?
-            ORDER BY recorded_at ASC LIMIT 1;
-        """, (telegram_id,))
         row = cursor.fetchone()
         return dict(row) if row else None
