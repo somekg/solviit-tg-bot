@@ -3,7 +3,6 @@ from typing import Optional, Dict, Any
 
 LEETCODE_GRAPHQL_URL = "https://leetcode.com/graphql"
 
-# Combined GraphQL query for solve counts and contest stats
 GRAPHQL_QUERY = """
 query getUserLeetCodeStats($username: String!) {
   matchedUser(username: $username) {
@@ -52,20 +51,13 @@ def fetch_leetcode_stats(username: str) -> Optional[Dict[str, Any]]:
             return None
 
         data = response.json()
-        
-        # LeetCode returns null for matchedUser if handle doesn't exist
         matched_user = data.get("data", {}).get("matchedUser")
         if not matched_user:
             return None
 
-        # Parse submission numbers
-        # submitStatsGlobal -> acSubmissionNum has entries:
-        # [{"difficulty": "All", "count": X}, {"difficulty": "Easy", ...}, ...]
         sub_list = matched_user.get("submitStatsGlobal", {}).get("acSubmissionNum", [])
-        
         counts = {item["difficulty"].lower(): item["count"] for item in sub_list}
 
-        # Parse contest ranking (null if the user has never participated)
         contest_data = data.get("data", {}).get("userContestRanking")
         rating = round(contest_data.get("rating", 0.0), 1) if contest_data else 0.0
         global_rank = contest_data.get("globalRanking", 0) if contest_data else None
@@ -83,11 +75,3 @@ def fetch_leetcode_stats(username: str) -> Optional[Dict[str, Any]]:
     except requests.RequestException as e:
         print(f"Error fetching stats for {username}: {e}")
         return None
-
-
-if __name__ == "__main__":
-    # Quick manual test: replace with your handle or a known user like 'tourist'
-    test_user = "neal_wu"
-    print(f"Fetching stats for {test_user}...")
-    stats = fetch_leetcode_stats(test_user)
-    print(stats)
