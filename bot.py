@@ -34,6 +34,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("pong! 🏓")
 
+async def gay(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🌈 You are fabulous! 🌈")
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
         "🤖 *SolvIIT LeetCode Bot — Commands*\n\n"
