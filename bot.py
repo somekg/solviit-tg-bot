@@ -35,7 +35,7 @@ async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("pong! 🏓")
 
 async def gay(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🌈 You are fabulous! 🌈")
+    await update.message.reply_text("🌈 Soy gay 🌈")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
@@ -199,6 +199,7 @@ if __name__ == "__main__":
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("ping", ping))
+    app.add_handler(CommandHandler("gay", gay))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("register", register))
     app.add_handler(CommandHandler("profile", profile))
