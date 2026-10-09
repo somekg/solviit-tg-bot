@@ -18,9 +18,8 @@ Instead of only tracking lifetime problem counts—which discourages newer membe
 ## ✨ Features
 
 * **⚡ Zero-API-Key Scraping:** Direct integration with LeetCode's public GraphQL API for problem counts and official contest ratings.
-* **📈 Delta-Based Rankings:** Computes weekly net progress ($\Delta \text{Solved}$ by difficulty, $\Delta \text{Rating}$) so recent effort is rewarded over legacy solve counts.
-* **⏰ Automated Weekly Broadcasts:** Automatically runs a snapshot job every Sunday night and posts the club leaderboard directly to the Telegram group.
 * **💾 Lightweight SQLite Storage:** Zero-configuration local database persisted safely via Docker volumes.
 * **🐳 One-Click Docker Setup:** Ready to run out of the box with Docker Compose on any server or local machine.
+* **📋 Simple weekly logs:** allows to create daily problem list logs of each club session to list the problems solved each week. 
 
 ---
