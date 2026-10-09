@@ -5,18 +5,21 @@ from dotenv import load_dotenv
 
 from telegram import Update
 from telegram.constants import ParseMode
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-
+from telegram.ext import ApplicationBuilder, CommandHandler, ChatMemberHandler, ContextTypes
 from database import (
     init_db,
     register_member,
     get_member,
-    get_all_members
+    get_all_members,
+    add_weekly_problem,
+    get_weekly_problems,
+    delete_weekly_problems
 )
 from leetcode import fetch_leetcode_stats
 
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+ADMIN_ID = os.getenv("ADMIN_TELEGRAM_ID")
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", 
@@ -189,6 +192,133 @@ async def leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE):
     full_message = f"{title}\n" + "\n".join(lines)
     await wait_msg.edit_text(full_message, parse_mode=ParseMode.MARKDOWN)
 
+async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Greets new members when they join the group."""
+    result = update.chat_member
+    if not result:
+        return
+
+    old_status = result.old_chat_member.status
+    new_status = result.new_chat_member.status
+
+    # Trigger only when someone transitions into being a member
+    if old_status in ["left", "kicked"] and new_status == "member":
+        user = result.new_chat_member.user
+        
+        # Skip if the new member is a bot
+        if user.is_bot:
+            return
+
+        name = user.first_name
+        welcome_text = (
+            f"👋 Bienvenido a SolvIIT! *{name}*!\n\n"
+            "Para participar en el leaderboard y registrar tu progreso:\n"
+            "1. Linkea tu cuenta de LeetCode haciendo \n\t`/register <usuario>`\n"
+            "2. Escribe `/help` para ver la lista de comandos del bot.\n\n"
+            "También recomendado:\n"
+            "1. Crearse cuenta de NeetCode y seguir el roadmap."
+            "Suerte..."
+        )
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text=welcome_text,
+            parse_mode=ParseMode.MARKDOWN
+        )
+
+async def add_problem(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin command: /addproblem <week> <name/url>"""
+    user_id = str(update.effective_user.id)
+    admin_id = os.getenv("ADMIN_TELEGRAM_ID")
+
+    # Reject if ADMIN_TELEGRAM_ID is missing/empty, or if caller is not the admin
+    if not admin_id or user_id != str(admin_id).strip():
+        await update.message.reply_text("⛔ You are not authorized to use this command.")
+        return
+
+    if not context.args or len(context.args) < 2:
+        await update.message.reply_text(
+            "⚠️ Usage: /addproblem <week_number> <problem_title_or_link>\n"
+            "Example: /addproblem 1 Two Sum - https://leetcode.com/problems/two-sum/"
+        )
+        return
+
+    try:
+        week_num = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("⚠️ Week number must be an integer.")
+        return
+
+    problem_name = " ".join(context.args[1:]).strip()
+    added = add_weekly_problem(week_num, problem_name)
+    if added:
+        await update.message.reply_text(f"✅ Added to Week {week_num}:\n{problem_name}")
+    else:
+        await update.message.reply_text(f"⚠️ That problem is already registered under Week {week_num}!")
+
+async def list_problems(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Public command: /problems or /problems <week>"""
+    target_week = None
+    if context.args:
+        try:
+            target_week = int(context.args[0])
+        except ValueError:
+            await update.message.reply_text("⚠️ Usage: /problems or /problems <week_number>")
+            return
+
+    problems = get_weekly_problems(target_week)
+    if not problems:
+        msg = f"No problems recorded yet for Week {target_week}." if target_week else "No weekly problems recorded yet."
+        await update.message.reply_text(msg)
+        return
+
+    # Group problems by week
+    weeks = {}
+    for p in problems:
+        w = p["week_number"]
+        weeks.setdefault(w, []).append(p["problem_name"])
+
+    text_blocks = ["📚 SolvIIT Club — Problem Archive\n"]
+    for w in sorted(weeks.keys(), reverse=True):
+        text_blocks.append(f"🗓️ Week {w}")
+        for item in weeks[w]:
+            text_blocks.append(f"• {item}")
+        text_blocks.append("")  # Empty spacing line
+
+    # Send as plain text without Markdown to avoid formatting crashes with underscores/URLs
+    await update.message.reply_text("\n".join(text_blocks))
+
+async def delete_problems(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin command: /deleteproblems <week_number>"""
+    user_id = str(update.effective_user.id)
+    admin_id = os.getenv("ADMIN_TELEGRAM_ID")
+    # Fail closed: reject if admin_id is missing or caller does not match
+    if not admin_id or user_id != str(admin_id).strip():
+        await update.message.reply_text("⛔ You are not authorized to use this command.")
+        return
+
+    if not context.args or len(context.args) != 1:
+        await update.message.reply_text(
+            "⚠️ Usage: `/deleteproblems <week_number>`\n"
+            "Example: `/deleteproblems 1`",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+
+    try:
+        week_num = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("⚠️ Week number must be an integer.")
+        return
+
+    deleted_count = delete_weekly_problems(week_num)
+    if deleted_count > 0:
+        await update.message.reply_text(
+            f"🗑️ Deleted {deleted_count} problem(s) from *Week {week_num}*.",
+            parse_mode=ParseMode.MARKDOWN
+        )
+    else:
+        await update.message.reply_text(f"⚠️ No problems found for Week {week_num}.")
+
 if __name__ == "__main__":
     if not TOKEN:
         raise ValueError("TELEGRAM_BOT_TOKEN not found in .env")
@@ -204,6 +334,14 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("register", register))
     app.add_handler(CommandHandler("profile", profile))
     app.add_handler(CommandHandler("leaderboard", leaderboard))
+    
+    app.add_handler(CommandHandler("problems", list_problems))
+    # Automatic 
+    app.add_handler(ChatMemberHandler(welcome_new_member, ChatMemberHandler.CHAT_MEMBER))
+
+    # Only admin
+    app.add_handler(CommandHandler("deleteproblems", delete_problems))
+    app.add_handler(CommandHandler("addproblem", add_problem))
 
     print("Bot is live (on-demand only)...")
-    app.run_polling()
+    app.run_polling(allowed_updates=Update.ALL_TYPES)

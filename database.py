@@ -4,9 +4,10 @@ from typing import Optional, Dict, Any, List
 DB_PATH = "data/club.db"
 
 def init_db():
-    """Initializes table for members with registration baselines."""
+    """Initializes tables without touching existing member data."""
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
+        
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS members (
                 telegram_id INTEGER PRIMARY KEY,
@@ -18,6 +19,15 @@ def init_db():
                 base_medium_solved INTEGER NOT NULL,
                 base_hard_solved INTEGER NOT NULL,
                 base_contest_rating REAL DEFAULT 0.0
+            );
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS weekly_problems (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                week_number INTEGER NOT NULL,
+                problem_name TEXT NOT NULL,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
         conn.commit()
@@ -79,3 +89,51 @@ def get_all_members() -> List[Dict[str, Any]]:
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM members;")
         return [dict(row) for row in cursor.fetchall()]
+
+def add_weekly_problem(week_number: int, problem_name: str) -> bool:
+    """Inserts a problem for a club week if it does not already exist."""
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id FROM weekly_problems 
+            WHERE week_number = ? AND LOWER(problem_name) = LOWER(?);
+        """, (week_number, problem_name.strip()))
+        
+        if cursor.fetchone():
+            return False  # Already exists, skip duplicate
+
+        cursor.execute("""
+            INSERT INTO weekly_problems (week_number, problem_name)
+            VALUES (?, ?);
+        """, (week_number, problem_name.strip()))
+        conn.commit()
+        return True
+
+def get_weekly_problems(week_number: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Fetches problems for a specific week or all weeks if None."""
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        if week_number is not None:
+            cursor.execute("""
+                SELECT week_number, problem_name, added_at 
+                FROM weekly_problems 
+                WHERE week_number = ? 
+                ORDER BY id ASC;
+            """, (week_number,))
+        else:
+            cursor.execute("""
+                SELECT week_number, problem_name, added_at 
+                FROM weekly_problems 
+                ORDER BY week_number DESC, id ASC;
+            """)
+        return [dict(row) for row in cursor.fetchall()]
+
+def delete_weekly_problems(week_number: int) -> int:
+    """Deletes all problems for a given week and returns the count of removed items."""
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM weekly_problems WHERE week_number = ?;", (week_number,))
+        deleted_count = cursor.rowcount
+        conn.commit()
+        return deleted_count
