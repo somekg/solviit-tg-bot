@@ -17,9 +17,22 @@ from database import (
 )
 from leetcode import fetch_leetcode_stats
 
+import html
+import random
+
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 ADMIN_ID = os.getenv("ADMIN_TELEGRAM_ID")
+
+# List of playful slap weapons
+SLAP_WEAPONS = [
+    "una trucha 🐟",
+    "un periódico 📄",
+    "un teclado ⌨️",
+    "su propia mano 👋",
+    "un pato de goma 🦆",
+]
+DEFAULT_TARGET = "@hector241106"  # Replace with your default user or mention
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", 
@@ -44,6 +57,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• `/profile` — View your lifetime stats and progress made since joining.\n"
         "• `/leaderboard [delta|total|rating]` — View club standings.\n"
         "• `/ping` — Check bot latency.\n"
+        "• `/problems` — Display weekly session problem log.\n\n"
         "• `/help` — Show this command directory.\n\n"
         "💡 *Tip:* To avoid cluttering the group, you can register and check your profile by DMing me directly!"
     )
@@ -316,6 +330,57 @@ async def delete_problems(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text(f"⚠️ No problems found for Week {week_num}.")
 
+
+async def slap(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Playfully slaps a targeted user, a replied-to user, or a default user."""
+    slapper = update.effective_user.first_name
+    weapon = random.choice(SLAP_WEAPONS)
+    
+    # 1. Target by replying to another user's message
+    if update.message.reply_to_message:
+        target_user = update.message.reply_to_message.from_user
+        target_mention = f'<a href="tg://user?id={target_user.id}">{html.escape(target_user.first_name)}</a>'
+        text = f"🖐️ <b>{html.escape(slapper)}</b> le da un guantazo a {target_mention} con {weapon}!"
+        await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+        return
+
+    # 2. Target by passing an argument: /slap @username
+    if context.args:
+        target_arg = " ".join(context.args).strip()
+        target_clean = html.escape(target_arg)
+        text = f"🖐️ <b>{html.escape(slapper)}</b> le da un guantazo a {target_clean} con {weapon}!"
+        await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+        return
+
+    # 3. Fallback to default user if no argument or reply was given
+    text = f"🖐️ <b>{html.escape(slapper)}</b> le da un guantazo a {DEFAULT_TARGET} con {weapon}!"
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+
+async def gay(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Playfully slaps a targeted user, a replied-to user, or a default user."""
+    slapper = update.effective_user.first_name
+    
+    # 1. Target by replying to another user's message
+    if update.message.reply_to_message:
+        target_user = update.message.reply_to_message.from_user
+        target_mention = f'<a href="tg://user?id={target_user.id}">{html.escape(target_user.first_name)}</a>'
+        text = f"🏳️‍🌈 <b>{html.escape(slapper)}</b> llama gay a {target_mention}, lol, que gay."
+        await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+        return
+
+    # 2. Target by passing an argument: /slap @username
+    if context.args:
+        target_arg = " ".join(context.args).strip()
+        # Clean potential HTML/Markdown syntax to avoid formatting breaks
+        target_clean = html.escape(target_arg)
+        text = f"🏳️‍🌈 <b>{html.escape(slapper)}</b> llama gay a {target_clean}, lol, que gay."
+        await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+        return
+
+    # 3. Fallback to default user if no argument or reply was given
+    text = f"🏳️‍🌈 <b>{html.escape(slapper)}</b> llama gay a {DEFAULT_TARGET}, lol, que gay."
+    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+
 if __name__ == "__main__":
     if not TOKEN:
         raise ValueError("TELEGRAM_BOT_TOKEN not found in .env")
@@ -330,7 +395,9 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("register", register))
     app.add_handler(CommandHandler("profile", profile))
     app.add_handler(CommandHandler("leaderboard", leaderboard))
-    
+    app.add_handler(CommandHandler("slap", slap))
+    app.add_handler(CommandHandler("gay", gay))
+
     app.add_handler(CommandHandler("problems", list_problems))
     # Automatic 
     app.add_handler(ChatMemberHandler(welcome_new_member, ChatMemberHandler.CHAT_MEMBER))
