@@ -5,7 +5,14 @@ from dotenv import load_dotenv
 
 from telegram import Update
 from telegram.constants import ParseMode
-from telegram.ext import ApplicationBuilder, CommandHandler, ChatMemberHandler, ContextTypes
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    ChatMemberHandler,
+    ContextTypes,
+    TypeHandler,
+    ApplicationHandlerStop
+)
 from database import (
     init_db,
     register_member,
@@ -13,7 +20,9 @@ from database import (
     get_all_members,
     add_weekly_problem,
     get_weekly_problems,
-    delete_weekly_problems
+    delete_weekly_problems,
+    mute_user,
+    is_user_muted
 )
 from leetcode import fetch_leetcode_stats
 
@@ -381,6 +390,80 @@ async def gay(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = f"🏳️‍🌈 <b>{html.escape(slapper)}</b> llama gay a {DEFAULT_TARGET}, lol, que gay."
     await update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
+async def mute_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin command: /mute [duration_minutes] (reply or pass ID)"""
+    user_id = str(update.effective_user.id)
+    admin_id = os.getenv("ADMIN_TELEGRAM_ID")
+
+    if not admin_id or user_id != str(admin_id).strip():
+        await update.message.reply_text("⛔ You are not authorized to use this command.")
+        return
+
+    duration_minutes = 30
+    target_id = None
+    target_name = "User"
+
+    # 1. Target via reply
+    if update.message.reply_to_message:
+        target_user = update.message.reply_to_message.from_user
+        target_id = target_user.id
+        target_name = target_user.first_name
+        if context.args:
+            try:
+                duration_minutes = int(context.args[0])
+            except ValueError:
+                pass
+
+    # 2. Target via argument: /mute <telegram_id> [duration_minutes]
+    elif context.args:
+        try:
+            target_id = int(context.args[0])
+            target_name = f"ID `{target_id}`"
+            if len(context.args) > 1:
+                duration_minutes = int(context.args[1])
+        except ValueError:
+            await update.message.reply_text("⚠️ Usage: Reply with `/mute [mins]` or `/mute <id> [mins]`")
+            return
+    else:
+        await update.message.reply_text("⚠️ Reply to a message with `/mute` or specify a user ID.")
+        return
+
+    # Prevent admin from muting themselves
+    if str(target_id) == str(admin_id).strip():
+        await update.message.reply_text("⚠️ You cannot mute yourself!")
+        return
+
+    mute_user(target_id, duration_seconds=duration_minutes * 60)
+    await update.message.reply_text(
+        f"🤫 <b>{html.escape(target_name)}</b> has been muted from bot commands for {duration_minutes} minutes.",
+        parse_mode=ParseMode.HTML
+    )
+
+async def check_mute_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Blocks muted users from triggering any commands."""
+    if not update.message or not update.effective_user:
+        return
+
+    # Only check if the message is actually an attempted command
+    text = update.message.text or ""
+    if not text.startswith("/"):
+        return
+
+    # Never block the admin
+    user_id = update.effective_user.id
+    admin_id = os.getenv("ADMIN_TELEGRAM_ID")
+    if admin_id and str(user_id) == str(admin_id).strip():
+        return
+
+    is_muted, remaining = is_user_muted(user_id)
+    if is_muted:
+        mins_left = max(1, remaining // 60)
+        await update.message.reply_text(
+            f"🤐 You are silenced from using bot commands ({mins_left}m remaining)."
+        )
+        # Stop propagation to prevent any CommandHandler from executing
+        raise ApplicationHandlerStop
+
 if __name__ == "__main__":
     if not TOKEN:
         raise ValueError("TELEGRAM_BOT_TOKEN not found in .env")
@@ -402,7 +485,13 @@ if __name__ == "__main__":
     # Automatic 
     app.add_handler(ChatMemberHandler(welcome_new_member, ChatMemberHandler.CHAT_MEMBER))
 
+    # Intercept commands before handlers run (group=-1 runs first)
+    app.add_handler(TypeHandler(Update, check_mute_status), group=-1)
+    
     # Only admin
+
+    # Admin mute command
+    app.add_handler(CommandHandler("mute", mute_command))
     app.add_handler(CommandHandler("deleteproblems", delete_problems))
     app.add_handler(CommandHandler("addproblem", add_problem))
 

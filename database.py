@@ -1,4 +1,6 @@
 import sqlite3
+import time
+
 from typing import Optional, Dict, Any, List
 
 DB_PATH = "data/club.db"
@@ -30,6 +32,14 @@ def init_db():
                 added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS muted_users (
+                telegram_id INTEGER PRIMARY KEY,
+                muted_until INTEGER NOT NULL
+            );
+        """)
+
         conn.commit()
 
 def register_member(telegram_id: int, tg_username: str, stats: Dict[str, Any]) -> tuple[bool, str]:
@@ -137,3 +147,37 @@ def delete_weekly_problems(week_number: int) -> int:
         deleted_count = cursor.rowcount
         conn.commit()
         return deleted_count
+
+def mute_user(telegram_id: int, duration_seconds: int = 1800):
+    """Mutes a user for a given duration (default: 30 minutes / 1800s)."""
+    muted_until = int(time.time()) + duration_seconds
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO muted_users (telegram_id, muted_until)
+            VALUES (?, ?)
+            ON CONFLICT(telegram_id) DO UPDATE SET muted_until = excluded.muted_until;
+        """, (telegram_id, muted_until))
+        conn.commit()
+
+def is_user_muted(telegram_id: int) -> tuple[bool, int]:
+    """
+    Checks if a user is currently muted.
+    Returns (True, remaining_seconds) if muted, (False, 0) otherwise.
+    """
+    now = int(time.time())
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT muted_until FROM muted_users WHERE telegram_id = ?;", (telegram_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False, 0
+        
+        muted_until = row[0]
+        if now < muted_until:
+            return True, muted_until - now
+        else:
+            # Expired: clean up record
+            cursor.execute("DELETE FROM muted_users WHERE telegram_id = ?;", (telegram_id,))
+            conn.commit()
+            return False, 0
