@@ -1,6 +1,5 @@
 import sqlite3
 import time
-
 from typing import Optional, Dict, Any, List
 
 DB_PATH = "data/club.db"
@@ -40,51 +39,48 @@ def init_db():
             );
         """)
 
+        # NEW: Snapshot table for daily tracking
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS daily_snapshots (
+                telegram_id INTEGER,
+                snapshot_date TEXT,
+                total_solved INTEGER,
+                easy_solved INTEGER,
+                medium_solved INTEGER,
+                hard_solved INTEGER,
+                contest_rating REAL,
+                PRIMARY KEY (telegram_id, snapshot_date)
+            );
+        """)
+
         conn.commit()
 
 def register_member(telegram_id: int, tg_username: str, stats: Dict[str, Any]) -> tuple[bool, str]:
-    """
-    Registers a member with their starting baseline.
-    Returns (True, "OK") if registered successfully.
-    Returns (False, error_reason) if user or handle already exists.
-    """
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
-        
-        # 1. Check if this Telegram account is already registered
         cursor.execute("SELECT leetcode_username FROM members WHERE telegram_id = ?;", (telegram_id,))
         existing_user = cursor.fetchone()
         if existing_user:
             return False, f"You are already registered with handle `{existing_user[0]}`! Baselines cannot be reset."
 
-        # 2. Check if the LeetCode handle is already registered by someone else
         cursor.execute("SELECT telegram_username FROM members WHERE LOWER(leetcode_username) = LOWER(?);", (stats["username"],))
         existing_handle = cursor.fetchone()
         if existing_handle:
             return False, f"Handle `{stats['username']}` is already linked to another user."
 
-        # 3. Insert fresh registration
         cursor.execute("""
             INSERT INTO members (
                 telegram_id, telegram_username, leetcode_username,
                 base_total_solved, base_easy_solved, base_medium_solved, base_hard_solved, base_contest_rating
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
         """, (
-            telegram_id,
-            tg_username,
-            stats["username"],
-            stats["total_solved"],
-            stats["easy_solved"],
-            stats["medium_solved"],
-            stats["hard_solved"],
-            stats["contest_rating"]
+            telegram_id, tg_username, stats["username"], stats["total_solved"],
+            stats["easy_solved"], stats["medium_solved"], stats["hard_solved"], stats["contest_rating"]
         ))
         conn.commit()
         return True, "OK"
-        
 
 def get_member(telegram_id: int) -> Optional[Dict[str, Any]]:
-    """Fetches a single member by Telegram ID."""
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -93,7 +89,6 @@ def get_member(telegram_id: int) -> Optional[Dict[str, Any]]:
         return dict(row) if row else None
 
 def get_all_members() -> List[Dict[str, Any]]:
-    """Fetches all registered members."""
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -101,16 +96,14 @@ def get_all_members() -> List[Dict[str, Any]]:
         return [dict(row) for row in cursor.fetchall()]
 
 def add_weekly_problem(week_number: int, problem_name: str) -> bool:
-    """Inserts a problem for a club week if it does not already exist."""
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT id FROM weekly_problems 
             WHERE week_number = ? AND LOWER(problem_name) = LOWER(?);
         """, (week_number, problem_name.strip()))
-        
         if cursor.fetchone():
-            return False  # Already exists, skip duplicate
+            return False
 
         cursor.execute("""
             INSERT INTO weekly_problems (week_number, problem_name)
@@ -120,7 +113,6 @@ def add_weekly_problem(week_number: int, problem_name: str) -> bool:
         return True
 
 def get_weekly_problems(week_number: Optional[int] = None) -> List[Dict[str, Any]]:
-    """Fetches problems for a specific week or all weeks if None."""
     with sqlite3.connect(DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
@@ -140,7 +132,6 @@ def get_weekly_problems(week_number: Optional[int] = None) -> List[Dict[str, Any
         return [dict(row) for row in cursor.fetchall()]
 
 def delete_weekly_problems(week_number: int) -> int:
-    """Deletes all problems for a given week and returns the count of removed items."""
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         cursor.execute("DELETE FROM weekly_problems WHERE week_number = ?;", (week_number,))
@@ -149,7 +140,6 @@ def delete_weekly_problems(week_number: int) -> int:
         return deleted_count
 
 def mute_user(telegram_id: int, duration_seconds: int = 1800):
-    """Mutes a user for a given duration (default: 30 minutes / 1800s)."""
     muted_until = int(time.time()) + duration_seconds
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
@@ -161,10 +151,6 @@ def mute_user(telegram_id: int, duration_seconds: int = 1800):
         conn.commit()
 
 def is_user_muted(telegram_id: int) -> tuple[bool, int]:
-    """
-    Checks if a user is currently muted.
-    Returns (True, remaining_seconds) if muted, (False, 0) otherwise.
-    """
     now = int(time.time())
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
@@ -177,7 +163,44 @@ def is_user_muted(telegram_id: int) -> tuple[bool, int]:
         if now < muted_until:
             return True, muted_until - now
         else:
-            # Expired: clean up record
             cursor.execute("DELETE FROM muted_users WHERE telegram_id = ?;", (telegram_id,))
             conn.commit()
             return False, 0
+
+# NEW: Snapshot management functions
+def save_snapshot(telegram_id: int, date_str: str, stats: Dict[str, Any]):
+    """Saves a daily stats snapshot for a user, updating if it already exists."""
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO daily_snapshots (
+                telegram_id, snapshot_date, total_solved, easy_solved, medium_solved, hard_solved, contest_rating
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(telegram_id, snapshot_date) DO UPDATE SET
+                total_solved = excluded.total_solved,
+                easy_solved = excluded.easy_solved,
+                medium_solved = excluded.medium_solved,
+                hard_solved = excluded.hard_solved,
+                contest_rating = excluded.contest_rating;
+        """, (
+            telegram_id, date_str, stats["total_solved"], stats["easy_solved"],
+            stats["medium_solved"], stats["hard_solved"], stats["contest_rating"]
+        ))
+        conn.commit()
+
+def get_all_snapshots(date_str: str) -> Dict[int, Dict[str, Any]]:
+    """Retrieves all snapshots for a given date, keyed by telegram_id."""
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM daily_snapshots WHERE snapshot_date = ?;", (date_str,))
+        return {row["telegram_id"]: dict(row) for row in cursor.fetchall()}
+
+def unmute_user(telegram_id: int) -> bool:
+    """Removes a user from the mute list. Returns True if they were muted."""
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM muted_users WHERE telegram_id = ?;", (telegram_id,))
+        deleted = cursor.rowcount > 0
+        conn.commit()
+        return deleted
