@@ -65,6 +65,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("pong! 🏓")
 
+async def amarillo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Amarillo")
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
         "🤖 *SolvIIT LeetCode Bot — Commands*\n\n"
@@ -608,6 +611,7 @@ if __name__ == "__main__":
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("ping", ping))
+    app.add_handler(CommandHandler("amarillo", amarillo))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("register", register))
     app.add_handler(CommandHandler("profile", profile))
