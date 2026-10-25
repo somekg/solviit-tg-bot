@@ -771,6 +771,12 @@ async def daily_snapshot_job(context: ContextTypes.DEFAULT_TYPE):
         await asyncio.sleep(0.5)
     logging.info("Daily snapshot job completed.")
 
+async def amarillo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    amarillo_text = (
+        "amarillo\n" 
+    )
+    await update.message.reply_text(amarillo_text, parse_mode=ParseMode.MARKDOWN)
+
 if __name__ == "__main__":
     if not TOKEN:
         raise ValueError("TELEGRAM_BOT_TOKEN not found in .env")
@@ -788,6 +794,8 @@ if __name__ == "__main__":
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("ping", ping))
+    app.add_handler(CommandHandler("amarillo", amarillo))
+
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("register", register))
     app.add_handler(CommandHandler("profile", profile))
