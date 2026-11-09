@@ -5,3 +5,4 @@ __pycache__/
 manual.txt
 data/
 *.bak
+.vscode/

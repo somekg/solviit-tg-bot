@@ -205,3 +205,18 @@ async def process_milestones(
             await asyncio.sleep(0.5)
         except Exception as e:
             logging.error(f"Milestone announcement failed: {e}")
+
+def calculate_points(easy: int, medium: int, hard: int) -> int:
+    """Calculates weighted leaderboard points for given solved problem counts.
+
+    Assigns weights of 1 point for Easy, 2 points for Medium, and 3 points for Hard.
+
+    Args:
+        easy: Number of easy problems solved.
+        medium: Number of medium problems solved.
+        hard: Number of hard problems solved.
+
+    Returns:
+        int: Total weighted point value.
+    """
+    return (easy * 1) + (medium * 2) + (hard * 3)

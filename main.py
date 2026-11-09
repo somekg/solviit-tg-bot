@@ -9,6 +9,7 @@ from database import init_db
 from handlers import register_all_handlers
 from jobs.milestones import milestone_polling_job
 from jobs.daily_snapshot import daily_snapshot_job
+from jobs.weekly_chart import daily_chart_job
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", 
@@ -31,7 +32,8 @@ def main():
     # Schedule Jobs
     spain_tz = ZoneInfo("Europe/Madrid")
     target_time = datetime.time(hour=23, minute=59, tzinfo=spain_tz)
-    
+    chart_time = datetime.time(hour=8, minute=0, tzinfo=spain_tz)
+    app.job_queue.run_daily(daily_chart_job, time=chart_time)
     app.job_queue.run_daily(daily_snapshot_job, time=target_time)
     app.job_queue.run_repeating(milestone_polling_job, interval=900, first=30)
 
