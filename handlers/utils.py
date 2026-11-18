@@ -1,6 +1,7 @@
 # handles/utils.py
 import asyncio
 import logging
+import html
 
 from telegram import Update
 from telegram.constants import ParseMode

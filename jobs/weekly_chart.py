@@ -56,12 +56,17 @@ def generate_points_chart() -> Optional[io.BytesIO]:
 
     fig, ax = plt.subplots(figsize=(8, 5))
 
+    # Distinct styles and markers so overlapping paths remain visible
+    line_styles = ['-', '--', '-.', ':']
+    markers = ['o', 's', '^', 'D', 'v', 'P', '*', 'X']
+    
+    active_member_idx = 0
+
     for m in members:
         tid = m["telegram_id"]
         name = m["leetcode_username"]
         m_snaps = snap_map.get(tid, {})
         
-        # Determine pre-week baseline prior to Monday (Sunday snap or registration base)
         sun_snap = m_snaps.get(sunday_before)
         if sun_snap:
             base_pts = calculate_points(sun_snap["easy_solved"], sun_snap["medium_solved"], sun_snap["hard_solved"])
@@ -90,19 +95,34 @@ def generate_points_chart() -> Optional[io.BytesIO]:
             last_known_pts = pts
             points_y.append(max(0, pts - base_pts))
 
-        # Skip members who have 0 total points gained across all active days
         if max(points_y) == 0:
             continue
 
-        # Plot line starting from index 0 ("Inicio") through active days
-        x_indices = list(range(len(points_y)))
-        ax.plot(x_indices, points_y, marker='o', linewidth=2.5, label=name)
+        # Tiny vertical micro-offset (e.g., ±0.08 pts) so identical lines sit side-by-side instead of hiding each other
+        jitter = (active_member_idx % 3 - 1) * 0.08
+        plotted_y = [y + jitter if y > 0 else 0 for y in points_y]
+
+        style = line_styles[active_member_idx % len(line_styles)]
+        marker = markers[active_member_idx % len(markers)]
+
+        x_indices = list(range(len(plotted_y)))
+        ax.plot(
+            x_indices, 
+            plotted_y, 
+            linestyle=style,
+            marker=marker, 
+            markersize=7,
+            linewidth=2.2, 
+            alpha=0.88,
+            label=f"{name} ({points_y[-1]} pts)"  # Also shows current score right in the legend
+        )
+        active_member_idx += 1
 
     # Style graph
     ax.set_xticks(range(8))
     ax.set_xticklabels(DAYS, fontsize=11, fontweight='bold')
     ax.set_ylabel("Points", fontsize=11, fontweight='bold', color='gold', rotation=0, labelpad=25)
-    ax.set_xlabel("Day of the week", fontsize=10, fontweight='bold', color='gold', labelpad=10)
+    ax.set_xlabel("Día", fontsize=10, fontweight='bold', color='gold', labelpad=10)
     ax.yaxis.set_label_position("left")
     
     # Clean borders
@@ -111,8 +131,14 @@ def generate_points_chart() -> Optional[io.BytesIO]:
     ax.spines['left'].set_linewidth(2)
     ax.spines['bottom'].set_linewidth(2)
     
-    # Cap initial Y-axis maximum height to at least 5
-    ax.set_ylim(bottom=0, top=max(5, ax.get_ylim()[1]))
+    # Collect all points plotted across all active lines
+    all_points = [pt for line in ax.lines for pt in line.get_ydata()]
+    max_pts = max(all_points) if all_points else 0
+
+    # Give ~20% vertical padding above the highest score, keeping a minimum top of 5
+    top_limit = max(5, int(max_pts * 1.2) + 1)
+    
+    ax.set_ylim(bottom=0, top=top_limit)
     ax.grid(True, linestyle='--', alpha=0.3)
     ax.legend(loc='upper left', frameon=False)
 
